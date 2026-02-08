@@ -6,6 +6,11 @@ node_modules/
 packages/*/dist/
 packages/*/build/
 
+# TypeScript compiled files
+packages/*/src/**/*.js
+packages/*/src/**/*.js.map
+packages/*/src/**/*.d.ts
+
 # IDE
 .idea/
 .vscode/
