@@ -1,0 +1,1 @@
+{"version":3,"file":"useSSE.d.ts","sourceRoot":"","sources":["useSSE.ts"],"names":[],"mappings":"AAEA,KAAK,YAAY,GAAG,WAAW,GAAG,gBAAgB,GAAG,iBAAiB,GAAG,eAAe,CAAC;AAEzF,UAAU,QAAQ;IAChB,IAAI,EAAE,YAAY,CAAC;IACnB,IAAI,EAAE,OAAO,CAAC;CACf;AAED,wBAAgB,MAAM;;;EA+CrB"}

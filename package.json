@@ -1,0 +1,17 @@
+{
+  "name": "cc-manager",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "start": "lsof -ti:3456 | xargs kill -9 2>/dev/null; lsof -ti:5173 | xargs kill -9 2>/dev/null; lsof -ti:5174 | xargs kill -9 2>/dev/null; sleep 1; pnpm -r --parallel dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "playwright": "^1.58.2",
+    "prettier": "^3.0.0",
+    "typescript": "^5.0.0"
+  }
+}
