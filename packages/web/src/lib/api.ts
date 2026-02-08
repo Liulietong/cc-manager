@@ -8,7 +8,27 @@ export interface Session {
   id: string;
   projectPath: string;
   createdAt: string;
-  messages: unknown[];
+  messages: SessionMessage[];
+}
+export interface SessionMessage {
+  type?: string;
+  timestamp?: string;
+  isMeta?: boolean;
+  message?: {
+    role?: string;
+    content?: string | SessionContentBlock[];
+  };
+}
+export interface SessionContentBlock {
+  type: 'text' | 'tool_use' | 'tool_result';
+  text?: string;
+  name?: string;
+  input?: Record<string, unknown>;
+  content?: string | SessionTextBlock[];
+}
+export interface SessionTextBlock {
+  type: 'text';
+  text: string;
 }
 export interface SessionMeta {
   id: string;
@@ -30,6 +50,8 @@ export interface Plugin {
 }
 export interface UserSettings {
   env?: Record<string, string>;
+  anthropicApiKey?: string;
+  defaultModel?: string;
   [key: string]: unknown;
 }
 export interface ProjectSettings {
@@ -38,6 +60,11 @@ export interface ProjectSettings {
 }
 
 const API_BASE = '/api';
+
+interface ApiError {
+  message?: string;
+  error?: string;
+}
 
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -49,7 +76,13 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    throw new Error(`API Error: ${response.statusText}`);
+    const status = response.status;
+    try {
+      const errorBody: ApiError = await response.json();
+      throw new Error(errorBody.message || errorBody.error || `API Error: ${status}`);
+    } catch {
+      throw new Error(`API Error: ${status}`);
+    }
   }
 
   return response.json();
@@ -79,9 +112,14 @@ export async function getUserSettings(): Promise<{
   return fetchJson(`${API_BASE}/settings`);
 }
 
+export interface LocalSettings {
+  env?: Record<string, string>;
+  [key: string]: unknown;
+}
+
 export async function getProjectSettings(path: string): Promise<{
   projectSettings: { path: string; content: ProjectSettings };
-  localSettings: { path: string; content: Record<string, unknown> };
+  localSettings: { path: string; content: LocalSettings };
 }> {
   return fetchJson(`${API_BASE}/settings/project?path=${encodeURIComponent(path)}`);
 }

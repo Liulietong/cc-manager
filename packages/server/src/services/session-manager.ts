@@ -35,7 +35,24 @@ interface SessionIndexEntry {
   isSidechain: boolean;
 }
 
+// Validation regex patterns
+const ENCODED_DIR_REGEX = /^[a-zA-Z0-9_-]+$/;
+const SESSION_ID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isValidEncodedDirName(name: string): boolean {
+  return ENCODED_DIR_REGEX.test(name) && !name.includes('..') && !name.includes('/');
+}
+
+function isValidSessionId(id: string): boolean {
+  return SESSION_ID_REGEX.test(id) && !id.includes('..') && !id.includes('/');
+}
+
 function getProjectFromIndex(indexPath: string, encodedDirName: string): Project | null {
+  // Validate input
+  if (!isValidEncodedDirName(encodedDirName)) {
+    return null;
+  }
+
   try {
     const content = readFileSync(indexPath, 'utf-8');
     const index: SessionIndex = JSON.parse(content);
@@ -90,6 +107,11 @@ export function getProjects(): Project[] {
 }
 
 export function getSessionDetail(encodedDirName: string, sessionId: string) {
+  // Validate input to prevent path traversal
+  if (!isValidEncodedDirName(encodedDirName) || !isValidSessionId(sessionId)) {
+    return null;
+  }
+
   const projectDir = join(config.claudeHome, 'projects', encodedDirName);
   const sessionFile = join(projectDir, `${sessionId}.jsonl`);
 
@@ -116,6 +138,11 @@ export function getSessionDetail(encodedDirName: string, sessionId: string) {
 }
 
 export function deleteSession(encodedDirName: string, sessionId: string): boolean {
+  // Validate input to prevent path traversal
+  if (!isValidEncodedDirName(encodedDirName) || !isValidSessionId(sessionId)) {
+    return false;
+  }
+
   const projectDir = join(config.claudeHome, 'projects', encodedDirName);
   const sessionFile = join(projectDir, `${sessionId}.jsonl`);
 
