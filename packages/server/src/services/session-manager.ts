@@ -80,15 +80,98 @@ function getProjectFromIndex(indexPath: string, encodedDirName: string): Project
     const content = readFileSync(indexPath, 'utf-8');
     const index: SessionIndex = JSON.parse(content);
 
-    const sessions: SessionMeta[] = index.entries.map((entry) => ({
-      id: entry.sessionId,
-      createdAt: entry.created,
-      updatedAt: entry.modified,
-      messageCount: entry.messageCount,
-    }));
+    const sessions: SessionMeta[] = index.entries
+      .map((entry) => ({
+        id: entry.sessionId,
+        createdAt: entry.created,
+        updatedAt: entry.modified,
+        messageCount: entry.messageCount,
+      }))
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
     return {
       path: index.originalPath,
+      encodedPath: encodedDirName,
+      sessions,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Scan .jsonl files in a project directory to build session metadata.
+ * This is a fallback when sessions-index.json doesn't exist.
+ */
+function scanSessionsFromJsonl(projectDir: string, encodedDirName: string): Project | null {
+  if (!isValidEncodedDirName(encodedDirName)) {
+    return null;
+  }
+
+  try {
+    const jsonlFiles = readdirSync(projectDir).filter((f) => f.endsWith('.jsonl'));
+
+    if (jsonlFiles.length === 0) {
+      return null;
+    }
+
+    // Read cwd from the first .jsonl file's first user message
+    let originalPath: string = projectDir; // fallback
+    const firstJsonlPath = join(projectDir, jsonlFiles[0]);
+    try {
+      const firstLine = readFileSync(firstJsonlPath, 'utf-8').split('\n')[0];
+      if (firstLine?.trim()) {
+        const firstMsg = JSON.parse(firstLine);
+        if (firstMsg.cwd) {
+          originalPath = firstMsg.cwd;
+        }
+      }
+    } catch {
+      // Fall back to projectDir
+    }
+
+    const sessions: SessionMeta[] = jsonlFiles.map((file) => {
+      const sessionId = file.replace('.jsonl', '');
+      const filePath = join(projectDir, file);
+
+      try {
+        const stat = statSync(filePath);
+
+        // Try to read first line for timestamp, fallback to file mtime
+        let createdAt = stat.mtime.toISOString();
+        try {
+          const firstLine = readFileSync(filePath, 'utf-8').split('\n')[0];
+          if (firstLine?.trim()) {
+            const firstMsg = JSON.parse(firstLine);
+            if (firstMsg.timestamp) {
+              createdAt = firstMsg.timestamp;
+            }
+          }
+        } catch {
+          // Fall back to stat.mtime
+        }
+
+        return {
+          id: sessionId,
+          createdAt,
+          updatedAt: stat.mtime.toISOString(),
+          messageCount: 0, // Don't count messages for fallback mode
+        };
+      } catch {
+        return {
+          id: sessionId,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          messageCount: 0,
+        };
+      }
+    });
+
+    // Sort by updatedAt descending (newest first)
+    sessions.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+    return {
+      path: originalPath,
       encodedPath: encodedDirName,
       sessions,
     };
@@ -127,6 +210,12 @@ export function getProjects(): Project[] {
           if (project && project.sessions.length > 0) {
             projects.push(project);
           }
+        } else {
+          // Fallback: scan .jsonl files directly
+          const project = scanSessionsFromJsonl(projectDir, entry.name);
+          if (project && project.sessions.length > 0) {
+            projects.push(project);
+          }
         }
       }
     }
@@ -146,6 +235,34 @@ export function getProjects(): Project[] {
   }
 
   return projects;
+}
+
+/**
+ * Clear the project cache to force a refresh on next getProjects() call.
+ */
+export function clearProjectCache(): void {
+  projectCache.delete('all');
+}
+
+/**
+ * Get a single project by path, bypassing cache.
+ */
+export function getProjectByPath(path: string): Project | null {
+  const projectsDir = join(config.claudeHome, 'projects');
+
+  if (!existsSync(projectsDir) || !existsSync(path)) {
+    return null;
+  }
+
+  // Extract encoded dir name from path
+  const encodedDirName = path.split('/').pop() || '';
+  const indexPath = join(path, 'sessions-index.json');
+
+  if (existsSync(indexPath)) {
+    return getProjectFromIndex(indexPath, encodedDirName);
+  }
+
+  return scanSessionsFromJsonl(path, encodedDirName);
 }
 
 export function getSessionDetail(encodedDirName: string, sessionId: string) {
