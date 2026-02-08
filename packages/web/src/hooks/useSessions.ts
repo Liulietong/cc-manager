@@ -3,13 +3,13 @@ import { getProjects, getSessionDetail, deleteSession } from '../lib/api';
 import { useSSE } from './useSSE';
 
 export function useProjects() {
-  const { lastEvent } = useSSE();
+  const { debouncedEvent } = useSSE();
 
   return useQuery({
     queryKey: ['projects'],
     queryFn: getProjects,
     staleTime: 5000, // Cache for 5 seconds
-    refetchInterval: lastEvent?.type === 'session-change' ? 1000 : false,
+    refetchInterval: debouncedEvent?.type === 'session-change' ? 3000 : false, // 3 second polling after events
   });
 }
 

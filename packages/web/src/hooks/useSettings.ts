@@ -3,12 +3,12 @@ import { getUserSettings, updateUserSettings } from '../lib/api';
 import { useSSE } from './useSSE';
 
 export function useUserSettings() {
-  const { lastEvent } = useSSE();
+  const { debouncedEvent } = useSSE();
 
   return useQuery({
     queryKey: ['userSettings'],
     queryFn: getUserSettings,
-    refetchInterval: lastEvent?.type === 'settings-change' ? 1000 : false,
+    refetchInterval: debouncedEvent?.type === 'settings-change' ? 3000 : false, // 3 second polling
   });
 }
 

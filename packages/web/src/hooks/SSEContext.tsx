@@ -10,23 +10,41 @@ export interface SSEEvent {
 export interface SSEContextValue {
   isConnected: boolean;
   lastEvent: SSEEvent | null;
+  debouncedEvent: SSEEvent | null;
 }
 
 export const SSEContext = createContext<SSEContextValue>({
   isConnected: false,
   lastEvent: null,
+  debouncedEvent: null,
 });
 
 export function useSSE() {
   return useContext(SSEContext);
 }
 
+const DEBOUNCE_DELAY = 200; // ms - debounce rapid SSE events
+
 export function SSEProvider({ children }: { children: React.ReactNode }) {
   const [isConnected, setIsConnected] = useState(false);
   const [lastEvent, setLastEvent] = useState<SSEEvent | null>(null);
+  const [debouncedEvent, setDebouncedEvent] = useState<SSEEvent | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const timeoutRef = useRef<number | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
+  const debounceTimeoutRef = useRef<number | null>(null);
+
+  // Debounce function for SSE events
+  const debounceEvent = (event: SSEEvent) => {
+    // Clear existing debounce timeout
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+    }
+    // Set new debounced event after delay
+    debounceTimeoutRef.current = window.setTimeout(() => {
+      setDebouncedEvent(event);
+    }, DEBOUNCE_DELAY);
+  };
 
   useEffect(() => {
     // Set a timeout - if connection doesn't establish in 5s, mark as failed
@@ -60,15 +78,21 @@ export function SSEProvider({ children }: { children: React.ReactNode }) {
     };
 
     eventSource.addEventListener('session-change', ((event: MessageEvent) => {
-      setLastEvent({ type: 'session-change', data: JSON.parse(event.data) });
+      const sseEvent = { type: 'session-change' as SSEEventType, data: JSON.parse(event.data) };
+      setLastEvent(sseEvent);
+      debounceEvent(sseEvent);
     }) as EventListener);
 
     eventSource.addEventListener('settings-change', ((event: MessageEvent) => {
-      setLastEvent({ type: 'settings-change', data: JSON.parse(event.data) });
+      const sseEvent = { type: 'settings-change' as SSEEventType, data: JSON.parse(event.data) };
+      setLastEvent(sseEvent);
+      debounceEvent(sseEvent);
     }) as EventListener);
 
     eventSource.addEventListener('plugin-change', ((event: MessageEvent) => {
-      setLastEvent({ type: 'plugin-change', data: JSON.parse(event.data) });
+      const sseEvent = { type: 'plugin-change' as SSEEventType, data: JSON.parse(event.data) };
+      setLastEvent(sseEvent);
+      debounceEvent(sseEvent);
     }) as EventListener);
 
     eventSource.onerror = () => {
@@ -107,12 +131,15 @@ export function SSEProvider({ children }: { children: React.ReactNode }) {
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
       eventSource.close();
     };
   }, []);
 
   return (
-    <SSEContext.Provider value={{ isConnected, lastEvent }}>
+    <SSEContext.Provider value={{ isConnected, lastEvent, debouncedEvent }}>
       {children}
     </SSEContext.Provider>
   );

@@ -3,12 +3,12 @@ import { getPlugins, togglePlugin } from '../lib/api';
 import { useSSE } from './useSSE';
 
 export function usePlugins() {
-  const { lastEvent } = useSSE();
+  const { debouncedEvent } = useSSE();
 
   return useQuery({
     queryKey: ['plugins'],
     queryFn: getPlugins,
-    refetchInterval: lastEvent?.type === 'plugin-change' ? 1000 : false,
+    refetchInterval: debouncedEvent?.type === 'plugin-change' ? 3000 : false, // 3 second polling
   });
 }
 
